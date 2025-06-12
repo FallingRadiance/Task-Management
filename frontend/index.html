@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务管理系统 - 测试页面</title>
+    <style>
+        body { padding: 20px; font-family: Arial, sans-serif; }
+        .task-item { border: 1px solid #ddd; margin: 10px 0; padding: 10px; }
+        .filter-section { margin-bottom: 20px; }
+        .create-form { margin-bottom: 20px; }
+        .error { color: red; }
+        .pagination { margin: 20px 0; }
+        .search-section {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-section input,
+        .search-section select {
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .search-section button {
+            padding: 5px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .search-section button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>任务管理系统测试页面</h1>
+
+    <!-- 过滤器 -->
+    <div class="filter-section">
+        <label>过滤任务：</label>
+        <select id="filterSelect">
+            <option value="all">所有任务</option>
+            <option value="true">已完成</option>
+            <option value="false">未完成</option>
+        </select>
+    </div>
+
+    <!-- 创建任务表单 -->
+    <div class="create-form">
+        <h2>创建新任务</h2>
+        <form id="createTaskForm">
+            <div>
+                <label>标题：</label>
+                <input type="text" id="taskTitle" required>
+            </div>
+            <div>
+                <label>描述：</label>
+                <textarea id="taskDescription"></textarea>
+            </div>
+            <div>
+                <label>开始时间：</label>
+                <input type="datetime-local" id="startTime">
+            </div>
+            <div>
+                <label>结束时间：</label>
+                <input type="datetime-local" id="endTime">
+            </div>
+            <button type="submit">创建任务</button>
+        </form>
+    </div>
+
+    <!-- 搜索和过滤任务 -->
+    <div class="search-section">
+        <input type="text" id="searchInput" placeholder="搜索任务...">
+        <select id="priorityFilter">
+            <option value="">所有优先级</option>
+            <option value="high">高</option>
+            <option value="medium">中</option>
+            <option value="low">低</option>
+        </select>
+        <input type="date" id="startDate">
+        <input type="date" id="endDate">
+        <button onclick="applyFilters()">搜索</button>
+    </div>
+
+    <!-- 任务列表 -->
+    <div id="tasksList"></div>
+
+    <!-- 添加分页控制组件 -->
+    <div class="pagination">
+        <button onclick="changePage(-1)">上一页</button>
+        <span id="pageInfo">第 1 页</span>
+        <button onclick="changePage(1)">下一页</button>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:8000';
+
+        let currentPage = 1;
+        const PAGE_SIZE = 10;
+
+        // 获取任务列表
+        async function fetchTasks(completed = null, page = currentPage) {
+            try {
+                let url = `${API_BASE_URL}/tasks/?page=${page}&page_size=${PAGE_SIZE}`;
+                if (completed === true || completed === false) {
+                    url += `&completed=${completed}`;
+                }
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                displayTasks(data);
+                updatePagination(data);
+            } catch (error) {
+                console.error('获取任务失败:', error);
+            }
+        }
+
+        // 显示任务列表
+        function displayTasks(response) {
+            const tasksDiv = document.getElementById('tasksList');
+            tasksDiv.innerHTML = '';
+            
+            const tasks = Array.isArray(response) ? response : response.items;
+            
+            if (tasks.length === 0) {
+                tasksDiv.innerHTML = '<p>暂无任务</p>';
+                return;
+            }
+            
+            tasks.forEach(task => {
+                const taskElement = document.createElement('div');
+                taskElement.className = 'task-item';
+                taskElement.innerHTML = `
+                    <h3>${task.title}</h3>
+                    <p>${task.description || '无描述'}</p>
+                    <p>状态: ${task.completed ? '已完成' : '未完成'}</p>
+                    <p>开始时间: ${task.start_time ? new Date(task.start_time).toLocaleString() : '未设置'}</p>
+                    <p>结束时间: ${task.end_time ? new Date(task.end_time).toLocaleString() : '未设置'}</p>
+                    <button onclick="toggleTaskStatus(${task.id}, ${!task.completed})">
+                        ${task.completed ? '标记为未完成' : '标记为已完成'}
+                    </button>
+                    <button onclick="deleteTask(${task.id})">删除</button>
+                `;
+                tasksDiv.appendChild(taskElement);
+            });
+        }
+
+        // 创建任务函数
+        async function createTask(taskData) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks/`, {  // 注意这里添加了尾部斜杠
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(taskData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                if (response.ok) {
+                    fetchTasks();
+                    document.getElementById('createTaskForm').reset();
+                }
+            } catch (error) {
+                console.error('创建任务失败:', error);
+                alert('创建任务失败: ' + error.message);
+            }
+        }
+
+        // 更新任务状态
+        async function toggleTaskStatus(taskId, completed) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ completed })
+                });
+                if (response.ok) {
+                    fetchTasks(document.getElementById('filterSelect').value);
+                }
+            } catch (error) {
+                console.error('更新任务失败:', error);
+            }
+        }
+
+        // 删除任务
+        async function deleteTask(taskId) {
+            if (!confirm('确定要删除这个任务吗？')) return;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                // 使用当前过滤器的值重新获取任务列表
+                const filterValue = document.getElementById('filterSelect').value;
+                switch(filterValue) {
+                    case 'true':
+                        await fetchTasks(true);
+                        break;
+                    case 'false':
+                        await fetchTasks(false);
+                        break;
+                    default:
+                        await fetchTasks();
+                }
+            } catch (error) {
+                console.error('删除任务失败:', error);
+                alert('删除任务失败: ' + error.message);
+            }
+        }
+
+        // 更新分页信息
+        function updatePagination(data) {
+            document.getElementById('pageInfo').textContent = 
+                `第 ${data.page} 页，共 ${data.pages} 页，总计 ${data.total} 条`;
+        }
+
+        // 改变页码
+        function changePage(delta) {
+            const newPage = currentPage + delta;
+            if (newPage > 0) {
+                currentPage = newPage;
+                fetchTasks();
+            }
+        }
+
+        // 搜索和过滤任务
+        async function applyFilters() {
+            const search = document.getElementById('searchInput').value;
+            const priority = document.getElementById('priorityFilter').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            let url = `${API_BASE_URL}/tasks/?page=${currentPage}&page_size=${PAGE_SIZE}`;
+            
+            if (search) url += `&search=${encodeURIComponent(search)}`;
+            if (priority) url += `&priority=${priority}`;
+            if (startDate) url += `&start_date=${startDate}`;
+            if (endDate) url += `&end_date=${endDate}`;
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                displayTasks(data);
+                updatePagination(data);
+            } catch (error) {
+                console.error('获取任务失败:', error);
+            }
+        }
+
+        // 事件监听器
+        document.getElementById('createTaskForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const taskData = {
+                title: document.getElementById('taskTitle').value,
+                description: document.getElementById('taskDescription').value,
+                start_time: document.getElementById('startTime').value || null,
+                end_time: document.getElementById('endTime').value || null
+            };
+            createTask(taskData);
+        });
+
+        document.getElementById('filterSelect').addEventListener('change', (e) => {
+            const value = e.target.value;
+            switch(value) {
+                case 'true':
+                    fetchTasks(true);
+                    break;
+                case 'false':
+                    fetchTasks(false);
+                    break;
+                default:
+                    fetchTasks();  // 当选择 "all" 时不传递 completed 参数
+            }
+        });
+
+        document.getElementById('searchInput').addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                applyFilters();
+            }
+        });
+
+        // 初始加载
+        fetchTasks();
+    </script>
+</body>
+</html>
+
