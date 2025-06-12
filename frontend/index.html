@@ -13,24 +13,29 @@
         .pagination { margin: 20px 0; }
         .search-section {
             margin: 20px 0;
-            display: flex;
-            gap: 10px;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .search-section input,
         .search-section select {
-            padding: 5px;
+            padding: 8px;
+            margin-right: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
+            min-width: 150px;
         }
 
         .search-section button {
-            padding: 5px 15px;
+            padding: 8px 20px;
             background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            transition: background-color 0.3s;
         }
 
         .search-section button:hover {
@@ -226,6 +231,66 @@
             }
         }
 
+        // 搜索和过滤任务
+        async function applyFilters() {
+            try {
+                const search = document.getElementById('searchInput').value;
+                const priority = document.getElementById('priorityFilter').value;
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                const completed = document.getElementById('filterSelect').value;
+                
+                let url = new URL(`${API_BASE_URL}/tasks/`);
+                let params = new URLSearchParams();
+
+                // 添加查询参数
+                if (search) params.append('search', search);
+                if (priority) params.append('priority', priority);
+                if (startDate) params.append('start_date', startDate);
+                if (endDate) params.append('end_date', endDate);
+                if (completed !== 'all') params.append('completed', completed);
+                
+                // 添加分页参数
+                params.append('page', currentPage);
+                params.append('page_size', PAGE_SIZE);
+                
+                url.search = params.toString();
+
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                displayTasks(data);
+                updatePagination(data);
+            } catch (error) {
+                console.error('搜索失败:', error);
+                alert('搜索失败: ' + error.message);
+            }
+        }
+
+        // 添加即时搜索功能
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // 添加事件监听器
+        document.getElementById('searchInput').addEventListener('input', 
+            debounce(() => applyFilters(), 500)
+        );
+        document.getElementById('priorityFilter').addEventListener('change', applyFilters);
+        document.getElementById('startDate').addEventListener('change', applyFilters);
+        document.getElementById('endDate').addEventListener('change', applyFilters);
+        document.getElementById('filterSelect').addEventListener('change', applyFilters);
+
         // 更新分页信息
         function updatePagination(data) {
             document.getElementById('pageInfo').textContent = 
@@ -238,33 +303,6 @@
             if (newPage > 0) {
                 currentPage = newPage;
                 fetchTasks();
-            }
-        }
-
-        // 搜索和过滤任务
-        async function applyFilters() {
-            const search = document.getElementById('searchInput').value;
-            const priority = document.getElementById('priorityFilter').value;
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
-            
-            let url = `${API_BASE_URL}/tasks/?page=${currentPage}&page_size=${PAGE_SIZE}`;
-            
-            if (search) url += `&search=${encodeURIComponent(search)}`;
-            if (priority) url += `&priority=${priority}`;
-            if (startDate) url += `&start_date=${startDate}`;
-            if (endDate) url += `&end_date=${endDate}`;
-            
-            try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
-                displayTasks(data);
-                updatePagination(data);
-            } catch (error) {
-                console.error('获取任务失败:', error);
             }
         }
 
