@@ -89,3 +89,31 @@ def test_update_task(test_db, client):
     assert update_response.status_code == 200
     assert update_response.json()["title"] == "更新后的任务"
     assert update_response.json()["completed"] == True
+
+def test_search_tasks(test_db, client):
+    # 创建测试数据
+    client.post("/tasks/", json={
+        "title": "搜索测试任务",
+        "description": "用于测试搜索功能"
+    })
+    
+    # 测试搜索功能
+    response = client.get("/tasks/?search=搜索测试")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) > 0
+    assert "搜索测试" in data["items"][0]["title"]
+
+def test_filter_by_date(test_db, client):
+    # 创建测试数据
+    client.post("/tasks/", json={
+        "title": "日期测试",
+        "start_time": "2025-06-12T10:00:00",
+        "end_time": "2025-06-12T12:00:00"
+    })
+    
+    # 测试日期筛选
+    response = client.get("/tasks/?start_date=2025-06-12")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) > 0
