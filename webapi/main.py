@@ -37,16 +37,16 @@ create_exception_handlers(app)
 # 添加CORS中间件
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=["*"],  # 允许所有来源
-    # allow_credentials=False,  # 使用通配符时必须为 False
-    # allow_methods=["*"],  # 允许所有 HTTP 方法
-    # allow_headers=["*"],  # 允许所有 HTTP 头
-    # expose_headers=["*"],  # 暴露所有响应头
+    allow_origins=["*"],  # 允许所有来源
+    allow_credentials=False,  # 使用通配符时必须为 False
+    allow_methods=["*"],  # 允许所有 HTTP 方法
+    allow_headers=["*"],  # 允许所有 HTTP 头
+    expose_headers=["*"],  # 暴露所有响应头
 
-    allow_origins=["*"],  # 在生产环境中应该设置具体的域名
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # allow_origins=["*"],  # 在生产环境中应该设置具体的域名
+    # allow_credentials=True,
+    # allow_methods=["*"],
+    # allow_headers=["*"],
 
 )
 
